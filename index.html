@@ -28,7 +28,6 @@ h1{font-size:22px;letter-spacing:-.02em}
 .card.mine{border-color:var(--sea);box-shadow:0 0 0 2px var(--sea-soft)}
 .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .title{font-size:17px;font-weight:700;letter-spacing:-.01em}
-.meta{color:var(--sub);font-size:13px;margin-top:2px}
 .note{font-size:14px;margin-top:6px;white-space:pre-wrap}
 .cnt{flex:none;background:var(--sea-soft);color:var(--sea);font-weight:700;border-radius:10px;padding:4px 10px;font-size:14px}
 .people{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
@@ -164,8 +163,7 @@ function render() {
     const ppl = byPlan[p.id] || []; const mine = p.id === myPlan;
     const canDel = p.createdBy === me || admin;
     return `<div class="card ${mine ? "mine" : ""}">
-      <div class="top"><div><div class="title">${esc(p.title)}</div>
-        ${p.createdBy ? `<div class="meta">제안 ${esc(p.createdBy)}</div>` : ""}</div>
+      <div class="top"><div><div class="title">${esc(p.title)}</div></div>
         <div class="cnt">${ppl.length}명</div></div>
       ${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}
       <div class="people">${ppl.length ? ppl.map(chip).join("") : '<span class="empty-p">아직 아무도 없음</span>'}</div>
