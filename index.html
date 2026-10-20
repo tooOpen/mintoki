@@ -106,8 +106,9 @@ if (firebaseConfig.projectId) {
   const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
   const fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
   const db = fs.getFirestore(initializeApp(firebaseConfig));
-  fs.onSnapshot(fs.collection(db, "plans"), s => { plans = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); });
-  fs.onSnapshot(fs.collection(db, "people"), s => { people = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); });
+  const fail = what => err => { $("banner").innerHTML = `<div class="banner">${what} 불러오기 실패: ${esc(err.code || err.message)}</div>`; };
+  fs.onSnapshot(fs.collection(db, "plans"), s => { plans = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail("일정"));
+  fs.onSnapshot(fs.collection(db, "people"), s => { people = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail("참여자"));
   api = {
     addPlan: async p => (await fs.addDoc(fs.collection(db, "plans"), { ...p, createdAt: Date.now() })).id,
     delPlan: id => fs.deleteDoc(fs.doc(db, "plans", id)),
