@@ -73,6 +73,7 @@ textarea{min-height:70px;resize:vertical}
 <div class="sheet-bg" id="nameSheet"><div class="sheet">
   <h2>이름 알려줘</h2>
   <input id="nameInput" placeholder="예: 김철수" maxlength="20" autocomplete="name">
+  <div id="nameMsg" style="color:var(--coral);font-size:13px;margin-top:6px"></div>
   <div class="row"><button class="btn primary" id="nameOk">시작</button></div>
 </div></div>
 
@@ -112,7 +113,14 @@ if (firebaseConfig.projectId) {
   api = {
     addPlan: async p => (await fs.addDoc(fs.collection(db, "plans"), { ...p, createdAt: Date.now() })).id,
     delPlan: id => fs.deleteDoc(fs.doc(db, "plans", id)),
-    setMyPlan: planId => fs.setDoc(fs.doc(db, "people", me), { name: me, planId: planId || null, updatedAt: Date.now() })
+    setMyPlan: planId => fs.setDoc(fs.doc(db, "people", me), { name: me, planId: planId || null, updatedAt: Date.now() }),
+    rename: async (from, to, planId) => {
+      const b = fs.writeBatch(db);
+      b.set(fs.doc(db, "people", to), { name: to, planId: planId || null, updatedAt: Date.now() });
+      b.delete(fs.doc(db, "people", from));
+      for (const p of plans) if (p.createdBy === from) b.update(fs.doc(db, "plans", p.id), { createdBy: to });
+      await b.commit();
+    }
   };
 } else {
   $("banner").innerHTML = '<div class="banner">데모 모드 — 이 기기에만 저장돼. Firebase 설정 넣으면 다같이 공유됨.</div>';
@@ -122,14 +130,19 @@ if (firebaseConfig.projectId) {
   api = {
     addPlan: async p => { const id = "p" + Date.now(); plans.push({ id, ...p, createdAt: Date.now() }); save(); return id; },
     delPlan: async id => { plans = plans.filter(p => p.id !== id); save(); },
-    setMyPlan: async planId => { people = people.filter(x => x.id !== me); people.push({ id: me, name: me, planId: planId || null, updatedAt: Date.now() }); save(); }
+    setMyPlan: async planId => { people = people.filter(x => x.id !== me); people.push({ id: me, name: me, planId: planId || null, updatedAt: Date.now() }); save(); },
+    rename: async (from, to, planId) => {
+      people = people.filter(x => x.id !== from && x.id !== to);
+      people.push({ id: to, name: to, planId: planId || null, updatedAt: Date.now() });
+      plans.forEach(p => { if (p.createdBy === from) p.createdBy = to; }); save();
+    }
   };
 }
 
 /* ---- 렌더 ---- */
 function render() {
   $("me").innerHTML = me ? `나: <b>${esc(me)}</b> <button id="rename">변경</button>` : "";
-  if (me) $("rename").onclick = () => { $("nameInput").value = me; $("nameSheet").classList.add("on"); };
+  if (me) $("rename").onclick = () => { $("nameInput").value = me; $("nameMsg").textContent = ""; $("nameSheet").classList.add("on"); };
 
   const ids = new Set(plans.map(p => p.id));
   const byPlan = {}; const undecided = [];
@@ -194,12 +207,27 @@ $("addOk").onclick = async () => {
 };
 $("nameOk").onclick = async () => {
   const n = $("nameInput").value.trim().replace(/\//g, ""); if (!n) return;
-  const old = me, oldPlan = people.find(x => x.id === old)?.planId;
-  me = n; try { localStorage.setItem("okinawa-name", n); } catch {}
-  $("nameSheet").classList.remove("on");
-  if (old && old !== n && oldPlan) await api.setMyPlan(oldPlan);
+  const old = me;
+  if (n === old) return $("nameSheet").classList.remove("on");
+  if (people.some(x => x.id === n)) {
+    $("nameMsg").textContent = old
+      ? "이미 누가 쓰는 이름이야. 다른 이름으로 해줘 (예: 이름 뒤에 A/B)"
+      : "이미 있는 이름이야. 본인이면 그대로 시작하고, 아니면 이름을 바꿔줘.";
+    if (old) return;                                   // 이름 변경: 남의 이름으로는 못 바꿈
+    if ($("nameOk").dataset.confirm !== n) {           // 첫 접속: 한 번 더 누르면 본인으로 간주 (폰 바꾼 경우 등)
+      $("nameOk").dataset.confirm = n; $("nameOk").textContent = "본인 맞음, 시작"; return;
+    }
+  }
+  $("nameOk").disabled = true;
+  try {
+    if (old && people.some(x => x.id === old)) await api.rename(old, n, people.find(x => x.id === old)?.planId);
+    me = n; try { localStorage.setItem("okinawa-name", n); } catch {}
+    $("nameSheet").classList.remove("on");
+  } catch (err) { $("nameMsg").textContent = "저장 실패: " + err.message; }
+  $("nameOk").disabled = false; $("nameOk").textContent = "시작"; delete $("nameOk").dataset.confirm;
   render();
 };
+$("nameInput").oninput = () => { $("nameMsg").textContent = ""; $("nameOk").textContent = "시작"; delete $("nameOk").dataset.confirm; };
 if (!me) $("nameSheet").classList.add("on");
 render();
 </script>
