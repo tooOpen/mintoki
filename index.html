@@ -34,6 +34,7 @@ h1{font-size:22px;letter-spacing:-.02em}
 .people{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
 .chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px}
 .chip.you{background:var(--sea);color:#fff;border-color:var(--sea)}
+.kick{background:none;border:0;color:var(--coral);font:inherit;font-weight:700;margin-left:4px;cursor:pointer}
 .empty-p{color:var(--sub);font-size:13px}
 .row{display:flex;gap:8px;align-items:center}
 .btn{border:0;border-radius:12px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer}
@@ -95,10 +96,12 @@ const firebaseConfig = {
   appId: "1:391262315395:web:7a99446329454e32448cb6"
 };
 /* ========================================================= */
+const ADMIN_KEY = "mintoki-admin";   // 주소 뒤에 ?admin=mintoki-admin 붙이면 운영자 모드
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let me = ""; try { me = localStorage.getItem("okinawa-name") || ""; } catch {}
+const admin = new URLSearchParams(location.search).get("admin") === ADMIN_KEY;
 let plans = [], people = [];
 let api; // {addPlan, delPlan, setMyPlan}
 
@@ -113,6 +116,7 @@ if (firebaseConfig.projectId) {
   api = {
     addPlan: async p => (await fs.addDoc(fs.collection(db, "plans"), { ...p, createdAt: Date.now() })).id,
     delPlan: id => fs.deleteDoc(fs.doc(db, "plans", id)),
+    delPerson: id => fs.deleteDoc(fs.doc(db, "people", id)),
     setMyPlan: planId => fs.setDoc(fs.doc(db, "people", me), { name: me, planId: planId || null, updatedAt: Date.now() }),
     rename: async (from, to, planId) => {
       const b = fs.writeBatch(db);
@@ -130,6 +134,7 @@ if (firebaseConfig.projectId) {
   api = {
     addPlan: async p => { const id = "p" + Date.now(); plans.push({ id, ...p, createdAt: Date.now() }); save(); return id; },
     delPlan: async id => { plans = plans.filter(p => p.id !== id); save(); },
+    delPerson: async id => { people = people.filter(x => x.id !== id); save(); },
     setMyPlan: async planId => { people = people.filter(x => x.id !== me); people.push({ id: me, name: me, planId: planId || null, updatedAt: Date.now() }); save(); },
     rename: async (from, to, planId) => {
       people = people.filter(x => x.id !== from && x.id !== to);
@@ -144,6 +149,7 @@ function render() {
   $("me").innerHTML = me ? `나: <b>${esc(me)}</b> <button id="rename">변경</button>` : "";
   if (me) $("rename").onclick = () => { $("nameInput").value = me; $("nameMsg").textContent = ""; $("nameSheet").classList.add("on"); };
 
+  const chip = n => `<span class="chip ${n === me ? "you" : ""}">${esc(n)}${admin ? `<button class="kick" data-kick="${esc(n)}">✕</button>` : ""}</span>`;
   const ids = new Set(plans.map(p => p.id));
   const byPlan = {}; const undecided = [];
   for (const x of people) (x.planId && ids.has(x.planId) ? (byPlan[x.planId] ||= []) : undecided).push(x.name);
@@ -151,18 +157,18 @@ function render() {
 
   $("summary").innerHTML = `<span class="pill">일정 <b>${plans.length}</b></span><span class="pill">참여 <b>${people.length - undecided.length}</b></span><span class="pill">미정 <b>${undecided.length}</b></span>`;
   $("undecided").innerHTML = undecided.length
-    ? `<div class="undecided"><h3>🤔 아직 미정</h3><div class="people">${undecided.map(n => `<span class="chip ${n === me ? "you" : ""}">${esc(n)}</span>`).join("")}</div></div>` : "";
+    ? `<div class="undecided"><h3>🤔 아직 미정</h3><div class="people">${undecided.map(chip).join("")}</div></div>` : "";
 
   const sorted = [...plans].sort((a, b) => (byPlan[b.id]?.length || 0) - (byPlan[a.id]?.length || 0) || a.createdAt - b.createdAt);
   $("list").innerHTML = sorted.length ? sorted.map(p => {
     const ppl = byPlan[p.id] || []; const mine = p.id === myPlan;
-    const canDel = p.createdBy === me;
+    const canDel = p.createdBy === me || admin;
     return `<div class="card ${mine ? "mine" : ""}">
       <div class="top"><div><div class="title">${esc(p.title)}</div>
         ${p.createdBy ? `<div class="meta">제안 ${esc(p.createdBy)}</div>` : ""}</div>
         <div class="cnt">${ppl.length}명</div></div>
       ${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}
-      <div class="people">${ppl.length ? ppl.map(n => `<span class="chip ${n === me ? "you" : ""}">${esc(n)}</span>`).join("") : '<span class="empty-p">아직 아무도 없음</span>'}</div>
+      <div class="people">${ppl.length ? ppl.map(chip).join("") : '<span class="empty-p">아직 아무도 없음</span>'}</div>
       <div class="row">${mine
         ? `<button class="btn leave" data-leave>빠지기</button>`
         : `<button class="btn join" data-join="${p.id}">${myPlan ? "이걸로 바꾸기" : "나도 할래"}</button>`}
@@ -179,10 +185,13 @@ $("list").onclick = async e => {
   try {
     if (b.dataset.join) await api.setMyPlan(b.dataset.join);
     else if ("leave" in b.dataset) await api.setMyPlan(null);
-    else if (b.dataset.del) {
+    else if (b.dataset.del || b.dataset.kick) {
       if (!b.dataset.armed) {            // 첫 탭: 확인 상태로 전환 (confirm 팝업은 일부 앱에서 막힘)
-        b.dataset.armed = "1"; b.textContent = "정말 삭제?"; b.style.color = "var(--coral)"; b.style.fontWeight = "700";
-        setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "삭제"; b.style.color = ""; b.style.fontWeight = ""; } }, 3000);
+        const label = b.textContent;
+        b.dataset.armed = "1"; b.textContent = b.dataset.kick ? "삭제?" : "정말 삭제?"; b.style.color = "var(--coral)"; b.style.fontWeight = "700";
+        setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = label; b.style.color = ""; b.style.fontWeight = ""; } }, 3000);
+      } else if (b.dataset.kick) {
+        await api.delPerson(b.dataset.kick);
       } else {
         const id = b.dataset.del;
         await api.delPlan(id);
@@ -192,7 +201,8 @@ $("list").onclick = async e => {
   } catch (err) { alert("저장 실패: " + err.message); }
   b.disabled = false;
 };
-$("addBtn").onclick = () => me ? $("addSheet").classList.add("on") : $("nameSheet").classList.add("on");
+$("undecided").onclick = $("list").onclick;
+$("addBtn").onclick =() => me ? $("addSheet").classList.add("on") : $("nameSheet").classList.add("on");
 $("addCancel").onclick = () => $("addSheet").classList.remove("on");
 $("addOk").onclick = async () => {
   const title = $("fTitle").value.trim(); if (!title) return $("fTitle").focus();
@@ -228,6 +238,7 @@ $("nameOk").onclick = async () => {
   render();
 };
 $("nameInput").oninput = () => { $("nameMsg").textContent = ""; $("nameOk").textContent = "시작"; delete $("nameOk").dataset.confirm; };
+if (admin) $("banner").innerHTML += '<div class="banner">운영자 모드 — 모든 일정 삭제, 이름 옆 ✕로 사람 삭제 가능</div>';
 if (!me) $("nameSheet").classList.add("on");
 render();
 </script>
