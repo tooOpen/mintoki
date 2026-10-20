@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>오키나와 자유시간</title>
+<style>
+:root{
+  --bg:#f4f8fa;--card:#fff;--ink:#14232b;--sub:#5d7480;--line:#dde7ec;
+  --sea:#0a8fb0;--sea-soft:#e2f4f9;--coral:#f06b4f;--coral-soft:#fde9e4;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0d171c;--card:#15232a;--ink:#e6f0f3;--sub:#8ea6b1;--line:#24363e;
+  --sea:#3bbbd9;--sea-soft:#14323b;--coral:#ff8a70;--coral-soft:#3a211b;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  padding:0 16px calc(96px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto}
+header{padding:20px 0 12px}
+h1{font-size:22px;letter-spacing:-.02em}
+.me{display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--sub);font-size:14px}
+.me b{color:var(--ink)}
+.me button{background:none;border:0;color:var(--sea);font:inherit;text-decoration:underline;cursor:pointer}
+.summary{display:flex;gap:8px;margin:8px 0 16px;flex-wrap:wrap}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--sub)}
+.pill b{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;margin-bottom:12px}
+.card.mine{border-color:var(--sea);box-shadow:0 0 0 2px var(--sea-soft)}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.title{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.meta{color:var(--sub);font-size:13px;margin-top:2px}
+.note{font-size:14px;margin-top:6px;white-space:pre-wrap}
+.cnt{flex:none;background:var(--sea-soft);color:var(--sea);font-weight:700;border-radius:10px;padding:4px 10px;font-size:14px}
+.people{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px}
+.chip.you{background:var(--sea);color:#fff;border-color:var(--sea)}
+.empty-p{color:var(--sub);font-size:13px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{border:0;border-radius:12px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer}
+.join{background:var(--sea);color:#fff;flex:1}
+.leave{background:var(--coral-soft);color:var(--coral);flex:1}
+.del{background:none;color:var(--sub);font-size:13px;padding:10px 6px;font-weight:400}
+.undecided{background:var(--card);border:1px dashed var(--line);border-radius:16px;padding:12px 14px;margin-bottom:12px}
+.undecided h3{font-size:14px;color:var(--sub);font-weight:600}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom));
+  background:var(--coral);color:#fff;border:0;border-radius:999px;padding:14px 22px;font:inherit;font-weight:700;font-size:16px;
+  box-shadow:0 6px 20px rgba(0,0,0,.18);cursor:pointer}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.sheet-bg.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+.sheet h2{font-size:18px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input,textarea{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px}
+textarea{min-height:70px;resize:vertical}
+.sheet .row{margin-top:16px}
+.ghost{background:var(--bg);color:var(--ink);flex:1}
+.primary{background:var(--sea);color:#fff;flex:2}
+.banner{background:var(--coral-soft);color:var(--coral);border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.none{text-align:center;color:var(--sub);padding:40px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌺 둘째날 자유시간 현황판</h1>
+  <div class="me" id="me"></div>
+</header>
+<div id="banner"></div>
+<div class="summary" id="summary"></div>
+<div id="undecided"></div>
+<div id="list"></div>
+<button class="fab" id="addBtn">＋ 할 거 올리기</button>
+
+<div class="sheet-bg" id="nameSheet"><div class="sheet">
+  <h2>이름 알려줘</h2>
+  <input id="nameInput" placeholder="예: 김철수" maxlength="20" autocomplete="name">
+  <div class="row"><button class="btn primary" id="nameOk">시작</button></div>
+</div></div>
+
+<div class="sheet-bg" id="addSheet"><div class="sheet">
+  <h2>새 일정</h2>
+  <label>뭐 할 건데?</label><input id="fTitle" placeholder="예: 츄라우미 수족관" maxlength="40">
+  <label>메모</label><textarea id="fNote" placeholder="시간, 이동수단, 예산 등 자유롭게" maxlength="300"></textarea>
+  <div class="row"><button class="btn ghost" id="addCancel">취소</button><button class="btn primary" id="addOk">올리고 참여</button></div>
+</div></div>
+
+<script type="module">
+/* ===== 1) Firebase 설정: 콘솔에서 복사한 값으로 교체 ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDALvL0Z9b8YG6BhWdht-o43BjnaUcgxho",
+  authDomain: "mintoki.firebaseapp.com",
+  projectId: "mintoki",
+  storageBucket: "mintoki.firebasestorage.app",
+  messagingSenderId: "391262315395",
+  appId: "1:391262315395:web:7a99446329454e32448cb6"
+};
+/* ========================================================= */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let me = ""; try { me = localStorage.getItem("okinawa-name") || ""; } catch {}
+let plans = [], people = [];
+let api; // {addPlan, delPlan, setMyPlan}
+
+/* ---- 저장소: Firebase 있으면 Firestore, 없으면 로컬 데모 ---- */
+if (firebaseConfig.projectId) {
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  const fs = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const db = fs.getFirestore(initializeApp(firebaseConfig));
+  fs.onSnapshot(fs.collection(db, "plans"), s => { plans = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); });
+  fs.onSnapshot(fs.collection(db, "people"), s => { people = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); });
+  api = {
+    addPlan: async p => (await fs.addDoc(fs.collection(db, "plans"), { ...p, createdAt: Date.now() })).id,
+    delPlan: id => fs.deleteDoc(fs.doc(db, "plans", id)),
+    setMyPlan: planId => fs.setDoc(fs.doc(db, "people", me), { name: me, planId: planId || null, updatedAt: Date.now() })
+  };
+} else {
+  $("banner").innerHTML = '<div class="banner">데모 모드 — 이 기기에만 저장돼. Firebase 설정 넣으면 다같이 공유됨.</div>';
+  const load = k => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } };
+  const save = () => { try { localStorage.setItem("demo-plans", JSON.stringify(plans)); localStorage.setItem("demo-people", JSON.stringify(people)); } catch {} render(); };
+  plans = load("demo-plans"); people = load("demo-people");
+  api = {
+    addPlan: async p => { const id = "p" + Date.now(); plans.push({ id, ...p, createdAt: Date.now() }); save(); return id; },
+    delPlan: async id => { plans = plans.filter(p => p.id !== id); save(); },
+    setMyPlan: async planId => { people = people.filter(x => x.id !== me); people.push({ id: me, name: me, planId: planId || null, updatedAt: Date.now() }); save(); }
+  };
+}
+
+/* ---- 렌더 ---- */
+function render() {
+  $("me").innerHTML = me ? `나: <b>${esc(me)}</b> <button id="rename">변경</button>` : "";
+  if (me) $("rename").onclick = () => { $("nameInput").value = me; $("nameSheet").classList.add("on"); };
+
+  const ids = new Set(plans.map(p => p.id));
+  const byPlan = {}; const undecided = [];
+  for (const x of people) (x.planId && ids.has(x.planId) ? (byPlan[x.planId] ||= []) : undecided).push(x.name);
+  const myPlan = people.find(x => x.id === me)?.planId;
+
+  $("summary").innerHTML = `<span class="pill">일정 <b>${plans.length}</b></span><span class="pill">참여 <b>${people.length - undecided.length}</b></span><span class="pill">미정 <b>${undecided.length}</b></span>`;
+  $("undecided").innerHTML = undecided.length
+    ? `<div class="undecided"><h3>🤔 아직 미정</h3><div class="people">${undecided.map(n => `<span class="chip ${n === me ? "you" : ""}">${esc(n)}</span>`).join("")}</div></div>` : "";
+
+  const sorted = [...plans].sort((a, b) => (byPlan[b.id]?.length || 0) - (byPlan[a.id]?.length || 0) || a.createdAt - b.createdAt);
+  $("list").innerHTML = sorted.length ? sorted.map(p => {
+    const ppl = byPlan[p.id] || []; const mine = p.id === myPlan;
+    const canDel = p.createdBy === me;
+    return `<div class="card ${mine ? "mine" : ""}">
+      <div class="top"><div><div class="title">${esc(p.title)}</div>
+        ${p.createdBy ? `<div class="meta">제안 ${esc(p.createdBy)}</div>` : ""}</div>
+        <div class="cnt">${ppl.length}명</div></div>
+      ${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}
+      <div class="people">${ppl.length ? ppl.map(n => `<span class="chip ${n === me ? "you" : ""}">${esc(n)}</span>`).join("") : '<span class="empty-p">아직 아무도 없음</span>'}</div>
+      <div class="row">${mine
+        ? `<button class="btn leave" data-leave>빠지기</button>`
+        : `<button class="btn join" data-join="${p.id}">${myPlan ? "이걸로 바꾸기" : "나도 할래"}</button>`}
+        ${canDel ? `<button class="btn del" data-del="${p.id}">삭제</button>` : ""}</div>
+    </div>`;
+  }).join("") : '<div class="none">아직 올라온 일정이 없어.<br>첫 번째로 올려봐 👇</div>';
+}
+
+/* ---- 이벤트 ---- */
+$("list").onclick = async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (!me) return $("nameSheet").classList.add("on");
+  b.disabled = true;
+  try {
+    if (b.dataset.join) await api.setMyPlan(b.dataset.join);
+    else if ("leave" in b.dataset) await api.setMyPlan(null);
+    else if (b.dataset.del) {
+      if (!b.dataset.armed) {            // 첫 탭: 확인 상태로 전환 (confirm 팝업은 일부 앱에서 막힘)
+        b.dataset.armed = "1"; b.textContent = "정말 삭제?"; b.style.color = "var(--coral)"; b.style.fontWeight = "700";
+        setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "삭제"; b.style.color = ""; b.style.fontWeight = ""; } }, 3000);
+      } else {
+        const id = b.dataset.del;
+        await api.delPlan(id);
+        if (people.find(x => x.id === me)?.planId === id) await api.setMyPlan(null);
+      }
+    }
+  } catch (err) { alert("저장 실패: " + err.message); }
+  b.disabled = false;
+};
+$("addBtn").onclick = () => me ? $("addSheet").classList.add("on") : $("nameSheet").classList.add("on");
+$("addCancel").onclick = () => $("addSheet").classList.remove("on");
+$("addOk").onclick = async () => {
+  const title = $("fTitle").value.trim(); if (!title) return $("fTitle").focus();
+  $("addOk").disabled = true;
+  try {
+    const id = await api.addPlan({ title, note: $("fNote").value.trim(), createdBy: me });
+    await api.setMyPlan(id);
+    ["fTitle", "fNote"].forEach(k => $(k).value = "");
+    $("addSheet").classList.remove("on");
+  } catch (err) { alert("저장 실패: " + err.message); }
+  $("addOk").disabled = false;
+};
+$("nameOk").onclick = async () => {
+  const n = $("nameInput").value.trim().replace(/\//g, ""); if (!n) return;
+  const old = me, oldPlan = people.find(x => x.id === old)?.planId;
+  me = n; try { localStorage.setItem("okinawa-name", n); } catch {}
+  $("nameSheet").classList.remove("on");
+  if (old && old !== n && oldPlan) await api.setMyPlan(oldPlan);
+  render();
+};
+if (!me) $("nameSheet").classList.add("on");
+render();
+</script>
+</body>
+</html>
